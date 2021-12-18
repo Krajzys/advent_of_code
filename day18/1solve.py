@@ -29,7 +29,6 @@ class SnailNumber:
             right = snail_number_str[comma_index+1:-1]
             return SnailNumber(SnailNumber.parse(left), SnailNumber.parse(right))
 
-
     def pair(self) -> object:
         return [self.left, self.right]
 
