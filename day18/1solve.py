@@ -8,7 +8,7 @@ class SnailNumber:
         self.right = right
 
     @classmethod
-    def parse(self, snail_number_str) -> object:
+    def parse(cls, snail_number_str) -> object:
         snail_number_str = snail_number_str[:]
         if match(r'^\d+$', snail_number_str):
             return int(snail_number_str)
