@@ -1,4 +1,11 @@
 from sys import argv
+from statistics import mean, median_grouped
+from math import inf
+from time import time
+from typing import ChainMap, Text
+from progress import Progress
+import data
+
 
 def parse_input(line_list) -> list:
     scanners = []
@@ -23,19 +30,24 @@ def get_b2b_dist(from_beacon, to_beacon):
 
 def is_same_b2b_dist(dis1, dis2):
     dis1 = dis1[:]
-    dis2 = list(dis2[:])
+    dis2 = list(abs(x) for x in dis2[:])
     for i in dis1:
         if abs(i) in dis2:
             dis2.remove(abs(i))
-            continue
-        elif i in dis2:
-            dis2.remove(i)
             continue
         break
     else:
         return True
     return False
 
+
+def get_intersect_len(list1, list2):
+    intersect = 0
+    for v in list1:
+        for v2 in list2:
+            if is_same_b2b_dist(v, v2):
+                intersect += 1
+    return intersect
 
 def main():
     if len(argv) < 2:
@@ -49,6 +61,14 @@ def main():
         filename = argv[1]
         line_list = [line.strip() for line in open(filename)]
 
+    export_data = False
+    if '-e' in argv:
+        export_data = True
+
+    import_data = False
+    if '-i' in argv:
+        import_data = True
+
     scanners = parse_input(line_list)
     in_scanner_distances = {}
     for i, b in enumerate(scanners):
@@ -61,6 +81,94 @@ def main():
                 b2b_distances[j2] = get_b2b_dist(b2, c2)
             scanner_distances[i2] = b2b_distances
         in_scanner_distances[i] = scanner_distances
+
+    overlaps = dict()
+    if not import_data:
+        count = 1
+        progress = Progress(0, len(in_scanner_distances)**2 - len(in_scanner_distances))
+        print('Determining overlapping scanners...')
+        for scanner_no, poss_dist in in_scanner_distances.items():
+            for scanner_no_2, poss_dist2 in in_scanner_distances.items():
+                progress.print()
+                if scanner_no == scanner_no_2:
+                    continue
+                for from_no, dist in poss_dist.items():
+                    for from_no2, dist2 in poss_dist2.items():
+                        intersect_len = get_intersect_len(dist.values(), dist2.values())
+                        if intersect_len >= 11:
+                            if (scanner_no, scanner_no_2) not in overlaps and (scanner_no_2, scanner_no) not in overlaps:
+                                overlaps[(scanner_no, scanner_no_2)] = (from_no, from_no2)
+                progress.update(count)
+                count += 1
+
+    if export_data:
+        with open('data.py', 'w') as file:
+            file.write('overlaps = ' + str(overlaps))
+
+    if import_data:
+        overlaps = data.overlaps
+
+    uniq_beacons = []
+    for si, s in enumerate(scanners):
+        for bi, b in enumerate(s):
+            uniq_beacons.append((si, bi))
+
+    print(len(uniq_beacons))
+
+    same_beacons = {}
+    for (s1, s2), (f1, f2) in overlaps.items():
+        beacons = in_scanner_distances[s1][f1]
+        beacons2 = in_scanner_distances[s2][f2]
+        same_beacons[(s1, f1)] = set()
+        same_beacons[(s1, f1)].add((s2, f2))
+
+        for k, v in beacons.items():
+            for k2, v2 in beacons2.items():
+                if is_same_b2b_dist(v, v2):
+                    if (s1, k) in same_beacons:
+                        same_beacons[(s1, k)].add((s2, k2))
+                    else:
+                        same_beacons[(s1, k)] = set()
+                        same_beacons[(s1, k)].add((s2, k2))
+
+    merged = {}
+    for k, v in same_beacons.items():
+        merged[k] = v.copy()
+
+    # Phase 1
+    # for every key and values:
+    #   for every value in values:
+    #     if value in all_keys:
+    #       values = values.union(whole.pop(value))
+    # dict{(1,2): {(2,3)},
+    #      (1,3): {(2,3)},
+    #      (3,4): {(1,2),(1,3)}
+    # }
+    # dict{(1,3): {(2,3)},
+    #      (3,4): {(1,2),(1,3),(2,3)}
+    # }
+    # dict{(3,4): {(1,2),(1,3),(2,3),(1,3)}}
+    #
+    # Phase 2
+    # For every key and values:
+    #   For every value in values:
+    #     For every key2 and values2:
+    #       If value in values2:
+    #         values.add(key2)
+    #         values = values.union(whole.pop(key2))
+    #         break
+    # dict{(1,2): {(2,3)},
+    #      (1,3): {(2,3),(3,4),(4,5)}}
+    # dict{(1,2): {(2,3),(1,3),(2,3),(3,4),(4,5)}}
+
+    for (s, b), non_uniques in merged.items():
+        for n in non_uniques:
+            if (s, b) == n:
+                continue
+            if n in uniq_beacons:
+                uniq_beacons.remove(n)
+
+    print(len(uniq_beacons))
 
 
 if __name__ == "__main__":
